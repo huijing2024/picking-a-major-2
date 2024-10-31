@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>3D Virtual Environment with Human Avatars</title>
+    <style> body { margin: 0; } </style>
+</head>
+<body>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+    <script>
+        // Initialize Scene, Camera, and Renderer
+        const scene = new THREE.Scene();
+        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+        const renderer = new THREE.WebGLRenderer();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        document.body.appendChild(renderer.domElement);
+
+        // Add Audio Listener to Camera
+        const listener = new THREE.AudioListener();
+        camera.add(listener);
+
+        // Create Audio Object
+        const backgroundAudio = new THREE.Audio(listener);
+        const audioLoader = new THREE.AudioLoader();
+
+        // Load and set audio
+        audioLoader.load('2.mp3', (buffer) => {
+            backgroundAudio.setBuffer(buffer);
+            backgroundAudio.setLoop(true); // Loop the audio
+            backgroundAudio.setVolume(0.5); // Set volume (0 to 1)
+            backgroundAudio.play(); // Start playing the audio
+        });
+
+        // Lighting for environment
+        const directionalLight = new THREE.DirectionalLight(0xffffff, 1);
+        directionalLight.position.set(20, 20, 5).normalize();
+        scene.add(directionalLight);
+
+        // Adding ambient light
+        const ambientLight = new THREE.AmbientLight(0x404040, 2); // Soft white light
+        scene.add(ambientLight);
+
+        // Adding multiple point lights for more brightness
+        const pointLight1 = new THREE.PointLight(0xffffff, 1, 50);
+        pointLight1.position.set(10, 20, 10);
+        scene.add(pointLight1);
+
+        const pointLight2 = new THREE.PointLight(0xffffff, 1, 50);
+        pointLight2.position.set(-10, 20, -10);
+        scene.add(pointLight2);
+
+        const pointLight3 = new THREE.PointLight(0xffffff, 1, 50);
+        pointLight3.position.set(-10, 20, 10);
+        scene.add(pointLight3);
+
+        const pointLight4 = new THREE.PointLight(0xffffff, 1, 50);
+        pointLight4.position.set(10, 20, -10);
+        scene.add(pointLight4);
+
+        // Load hallway model
+        const loader = new THREE.GLTFLoader();
+        let avatars = []; // Array to store avatars
+
+        loader.load('diorama.glb', (gltf) => {
+            const hallway = gltf.scene;
+            hallway.scale.set(40, 40, 40);
+            hallway.position.set(-121, -80, -251);
+            scene.add(hallway);
+        });
+
+        // Load and place avatars
+        // Load avatars with animation
+        const loadAvatar = (url, position, scale, rotation) => {
+            return new Promise((resolve) => {
+                loader.load(url, (gltf) => {
+                    const avatar = gltf.scene;
+                    avatar.position.copy(position);
+                    avatar.scale.set(scale, scale, scale);
+                    avatar.rotation.copy(rotation);
+                    avatars.push(avatar); // Add to avatars array
+                    scene.add(avatar);
+                    resolve(avatar);
+                });
+            });
+        };
+
+        const avatarPromises = [
+            loadAvatar('male_adventurer.glb', new THREE.Vector3(-21, -80, -51), 40, new THREE.Euler(0, 0, 0)),
+            loadAvatar('low-poly_girl.glb', new THREE.Vector3(-28, -80, 20), 40, new THREE.Euler(0, Math.PI, 0)),
+            loadAvatar('casual_lowpoly_male_rig_t-pose.glb', new THREE.Vector3(-58, -70, -19), 35, new THREE.Euler(0, Math.PI / 2, 0))
+        ];
+
+        Promise.all(avatarPromises).then((loadedAvatars) => {
+            loadedAvatars.forEach((avatar) => {
+                const mixer = new THREE.AnimationMixer(avatar);
+                const handBone = avatar.getObjectByName('Hand'); // Adjust this name based on your model's bone structure
+
+                // Create an animation to move the hand up and down
+                const clip = new THREE.AnimationClip('HandMovement', -1, [
+                    new THREE.VectorKeyframeTrack(`${handBone.name}.position`, [0, 1, 2], 
+                        [0, 1, 0,  // Initial position (0, 0, 0) to (0, 1, 0)
+                         0, 0, 0], // Back to initial position
+                        THREE.InterpolateLinear),
+                ]);
+                mixer.clipAction(clip).play();
+                avatar.mixer = mixer; // Store mixer for later updates
+            });
+        });
+
+        // Set camera and add controls
+        camera.position.set(35, 0, 10); // Adjust based on your hallway's layout
+        const controls = new THREE.OrbitControls(camera, renderer.domElement);
+
+        // Render loop with subtle movements
+        function animate() {
+            requestAnimationFrame(animate);
+            controls.update();
+
+            // Subtle movement for avatars
+            avatars.forEach((avatar, index) => {
+                // Make avatars bob up and down
+                avatar.position.y = -80 + Math.sin(Date.now() * 0.0005 + index) * 1.2; // Subtle bobbing effect
+                
+                // Update animation mixers for hand movements
+                if (avatar.mixer) {
+                    avatar.mixer.update(0.01); // Adjust the time as needed for speed
+                }
+            });
+
+            renderer.render(scene, camera);
+        }
+
+        animate();
+    </script>
+</body>
+</html>
